@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -10,7 +11,7 @@ namespace Xania.ObjectMapper
 
         public Values(IEnumerable<KeyValuePair<string, object>> mappings)
         {
-            _dict = new Dictionary<string, object>();
+            _dict = new Dictionary<string, object>(StringComparer.InvariantCultureIgnoreCase);
             foreach (var m in mappings)
             {
                 _dict.Add(m.Key, m.Value);

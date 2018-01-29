@@ -2,11 +2,11 @@
 
 namespace Xania.ObjectMapper
 {
-    public interface IDependencyMapping
+    public interface IDependency
     {
         string Name { get; }
-        object Value { get; }
-        Type Type { get; }
-        void SetValue(object instance, object value);
+        object SourceValue { get; }
+        Type TargetType { get; }
+        // void SetValue(object instance, object value);
     }
 }

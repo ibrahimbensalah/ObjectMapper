@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Xania.ObjectMapper
 {
-    public interface IMap<TSource, TTarget>: IEnumerable<KeyValuePair<TSource, TTarget>>
+    public interface IMap<in TSource, TTarget>: IEnumerable<KeyValuePair<string, object>>
     {
         bool TryGetValue(TSource name, out TTarget value);
     }

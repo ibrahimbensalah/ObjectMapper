@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
 
@@ -36,7 +36,7 @@ namespace Xania.ObjectMapper.Tests
         {
             1.MapTo<float>().Should().Be(1f);
             "1".MapTo<decimal>().Should().Be(1m);
-            1.MapTo<double>().Should().Be(1d);
+            1m.MapTo<double>().Should().Be(1d);
             1.MapTo<sbyte>().Should().Be(1);
             1.MapTo<byte>().Should().Be(1);
             1.MapTo<long>().Should().Be(1L);
@@ -45,6 +45,8 @@ namespace Xania.ObjectMapper.Tests
         [Test]
         public void MapToNullable()
         {
+            int? nill = null;
+            nill.MapTo<int?>().Should().BeNull();
             1.MapTo<float?>().Should().Be(1f);
 
             DateTime? now = DateTime.Now;
@@ -87,35 +89,82 @@ namespace Xania.ObjectMapper.Tests
         [Test]
         public void CustomMapToObject()
         {
+            // arrange 
+            var mapper = new Mapper(new GraphSONMappingResolver());
             var graphSON = new GraphSON();
-            graphSON.Values.Add("firstName", "Ibrahim");
-            graphSON.Values.Add("lastName", "ben Salah");
-            graphSON.Values.Add("parent", new { firstName = "MFadel" });
+            graphSON.Properties.Add("firstName", "Ibrahim");
+            graphSON.Properties.Add("lastName", "ben Salah");
+            graphSON.Edges.Add("parent", new { firstName = "MFadel" });
 
-            var person = graphSON.MapTo<Person>();
+            // act 
+            var person = mapper.MapTo<Person>(graphSON);
+
+            // assert
             person.FirstName.Should().Be("Ibrahim");
             person.LastName.Should().Be("ben Salah");
             person.Parent.FirstName.Should().Be("MFadel");
         }
 
-        private class GraphSON: IMap<string, object>
+        [Test]
+        public void MapToDynamicType()
         {
-            public IDictionary<string, object> Values { get; } = new Dictionary<string, object>(StringComparer.InvariantCultureIgnoreCase);
-
-            public bool TryGetValue(string name, out object value)
+            var obj = new
             {
-                return Values.TryGetValue(name, out value);
-            }
+                firstName = 123,
+                Parent = new Contact()
+            };
 
-            public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
-            {
-                return Values.GetEnumerator();
-            }
+            var mapper = new Mapper(new PersonConstract());
+            var person = mapper.MapTo<Person>(obj);
 
-            IEnumerator IEnumerable.GetEnumerator()
+            person.FirstName.Should().Be("Ibrahim 123");
+        }
+
+        [Test]
+        public void MapToEnumerable()
+        {
+            var obj = new
             {
-                return GetEnumerator();
-            }
+                numbers = new [] {1m, 2m, 3m},
+                names = new[] { "1", "2", "3"}
+            };
+            var contact = obj.MapTo<Contact>();
+            contact.Numbers.ShouldAllBeEquivalentTo(obj.numbers);
+        }
+
+    }
+
+    class GraphSON
+    {
+        public IDictionary<string, object> Properties { get; } = new Dictionary<string, object>(StringComparer.InvariantCultureIgnoreCase);
+        public IDictionary<string, object> Edges { get; } = new Dictionary<string, object>(StringComparer.InvariantCultureIgnoreCase);
+    }
+
+    class Contact
+    {
+        public int[] Numbers { get; set; }
+        public IEnumerable<int> Names { get; set; }
+    }
+
+    class GraphSONMappingResolver : IMappingResolver
+    {
+        public IOption<IMapping> Resolve(object obj, Type targetType)
+        {
+            if (obj is GraphSON g) 
+                return Option<IMapping>.Some(new TypeMapping(g.Properties.Concat(g.Edges), targetType));
+
+            return Option<IMapping>.None();
+        }
+    }
+
+    class PersonConstract: IMappingResolver
+    {
+        public IOption<IMapping> Resolve(object obj, Type targetType)
+        {
+            if (obj is int)
+                return (new TerminalMapping("Ibrahim " + obj)).Some();
+
+            return Option<IMapping>.None();
         }
     }
 }
