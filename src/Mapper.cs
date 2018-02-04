@@ -12,7 +12,8 @@ namespace Xania.ObjectMapper
 
         public static IMappingResolver[] BuildInMappingResolvers = {
             new PrimitiveMappingResolver(),
-            new EnumerableMappingResolver()
+            new EnumerableMappingResolver(),
+            new ObjectMappingResolver()
         };
 
         public Mapper(params IMappingResolver[] customMappingResolvers)
@@ -28,7 +29,65 @@ namespace Xania.ObjectMapper
             return (T)obj;
         }
 
-        private IOption<TypeMapping> CreateMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
+        public IOption<object> Map(object obj, Type targetType)
+        {
+            if (obj == null)
+                return Option<object>.Some(null);
+
+            var customMappables =
+                    from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
+                    from mappable in r.Resolve(obj)
+                    select mappable.To(targetType)
+                ;
+
+            var results = 
+                from option in customMappables
+                from mapping in option
+                let deps =
+                    from dep in mapping.DependencyMappings
+                    let m = Map(dep.SourceValue, dep.TargetType)
+                    select new KeyValuePair<string, IOption<object>>(dep.Name, m)
+                select mapping.Create(new Values(deps));
+
+            return results.FirstOrDefault() ?? Option<object>.None();
+        }
+    }
+
+    public class ObjectMappingResolver : IMappingResolver
+    {
+        public IOption<IMappable> Resolve(object obj)
+        {
+            return new MappableObject(obj).Some();
+        }
+    }
+
+    public class MappableObject : IMappable
+    {
+        private readonly object _value;
+
+        public MappableObject(object value)
+        {
+            _value = value;
+        }
+
+        public IOption<IMapping> To(Type targetType)
+        {
+            return CreateObjectMapping(_value, targetType);
+        }
+
+        private IOption<IMapping> CreateObjectMapping(object obj, Type targetType)
+        {
+            if (obj is IEnumerable<KeyValuePair<string, object>> pairs)
+                return CreateObjectMapping(pairs, targetType);
+
+            return CreateObjectMapping(
+                from PropertyDescriptor sourceProp in TypeDescriptor.GetProperties(obj)
+                select new KeyValuePair<string, object>(sourceProp.Name, sourceProp.GetValue(obj)),
+                targetType
+            );
+        }
+
+        private IOption<ObjectMapping> CreateObjectMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
         {
             var ctor =
                 targetType
@@ -37,67 +96,9 @@ namespace Xania.ObjectMapper
                     .FirstOrDefault();
 
             if (ctor == null)
-                return Option<TypeMapping>.None();
+                return Option<ObjectMapping>.None();
 
-            return new TypeMapping(pairs, targetType, ctor).Some();
-        }
-
-        public IOption<object> Map(object obj, Type targetType)
-        {
-            if (obj == null)
-                return Option<object>.Some(null);
-
-            var customMappings =
-                from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
-                from mappable in r.Resolve(obj)
-                from mapping in mappable.To(targetType)
-                let deps =
-                    from dep in mapping.DependencyMappings
-                    select Map(dep.SourceValue, dep.TargetType)
-                select mapping;
-
-            var customMapping = customMappings.FirstOrDefault();
-            if (customMapping != null)
-            {
-                var mappings =
-                        from dep in customMapping.DependencyMappings
-                        let m = Map(dep.SourceValue, dep.TargetType)
-                        select new KeyValuePair<string, IOption<object>>(dep.Name, m)
-                    ;
-
-                return customMapping.Create(new Values(mappings));
-            }
-
-            var converter = TypeDescriptor.GetConverter(targetType);
-            if (converter.CanConvertFrom(obj.GetType()))
-                return converter.ConvertFrom(obj).Some();
-
-            if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                return Map(obj, Nullable.GetUnderlyingType(targetType));
-
-            foreach (var mapping in CreateMapping(obj, targetType))
-            {
-                var mappings =
-                        from dep in mapping.DependencyMappings
-                        let m = Map(dep.SourceValue, dep.TargetType)
-                        select new KeyValuePair<string, IOption<object>>(dep.Name, m)
-                    ;
-                return mapping.Create(new Values(mappings));
-            }
-
-            return Option<object>.None();
-        }
-
-        private IOption<IMapping> CreateMapping(object obj, Type targetType)
-        {
-            if (obj is IEnumerable<KeyValuePair<string, object>> pairs)
-                return CreateMapping(pairs, targetType);
-
-            return CreateMapping(
-                from PropertyDescriptor sourceProp in TypeDescriptor.GetProperties(obj)
-                select new KeyValuePair<string, object>(sourceProp.Name, sourceProp.GetValue(obj)),
-                targetType
-            );
+            return new ObjectMapping(pairs, targetType, ctor).Some();
         }
     }
 
@@ -158,7 +159,34 @@ namespace Xania.ObjectMapper
             if (targetType == typeof(SByte))
                 return Term(Convert.ToSByte(_value)).Some();
 
+            var converter = TypeDescriptor.GetConverter(targetType);
+            if (converter.CanConvertFrom(_value.GetType()))
+                return Term(converter.ConvertFrom(_value)).Some();
+
+            if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                return new NullableMapping(_value, Nullable.GetUnderlyingType(targetType)).Some();
+
             return Option<IMapping>.None();
+        }
+    }
+
+    public class NullableMapping : IMapping
+    {
+        public NullableMapping(object value, Type underlyingType)
+        {
+            DependencyMappings = new[]
+                {new GenericDependency {Name = "obj", SourceValue = value, TargetType = underlyingType}};
+        }
+
+        public IEnumerable<IDependency> DependencyMappings { get; }
+
+        public IOption<object> Create(IMap<string, object> values)
+        {
+            var option = values["obj"];
+            if (option.IsSome)
+                return option;
+
+            return Option<object>.Some(null);
         }
     }
 
@@ -256,12 +284,12 @@ namespace Xania.ObjectMapper
             _elementType = elementType;
             DependencyMappings =
             (from item in obj.OfType<object>()
-                select new GenericDependency
-                {
-                    Name = Guid.NewGuid().ToString(),
-                    SourceValue = item,
-                    TargetType = elementType
-                }
+             select new GenericDependency
+             {
+                 Name = Guid.NewGuid().ToString(),
+                 SourceValue = item,
+                 TargetType = elementType
+             }
             ).ToArray();
         }
 

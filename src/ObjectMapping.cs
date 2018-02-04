@@ -6,10 +6,10 @@ using System.Reflection;
 
 namespace Xania.ObjectMapper
 {
-    public class TypeMapping : IMapping
+    public class ObjectMapping : IMapping
     {
 
-        public TypeMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
+        public ObjectMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
             : this(pairs, targetType, GetConstructorInfo(targetType))
         {
         }
@@ -25,7 +25,7 @@ namespace Xania.ObjectMapper
             return ctor;
         }
 
-        public TypeMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType, ConstructorInfo ctor)
+        public ObjectMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType, ConstructorInfo ctor)
         {
             TargetType = targetType;
             Ctor = ctor;
@@ -95,7 +95,7 @@ namespace Xania.ObjectMapper
 
         public IOption<IMapping> To(Type targetType)
         {
-            return new TypeMapping(_values, targetType).Some();
+            return new ObjectMapping(_values, targetType).Some();
         }
     }
 
