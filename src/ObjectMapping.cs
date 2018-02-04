@@ -58,29 +58,44 @@ namespace Xania.ObjectMapper
         }
 
         public Type TargetType { get; }
-        public ConstructorInfo Ctor { get; set; }
-
+        public ConstructorInfo Ctor { get; }
         public IEnumerable<IDependency> DependencyMappings { get; }
 
-        public object Create(IMap<string, object> values)
+        public IOption<object> Create(IMap<string, object> values)
         {
-            return Create2(Ctor, values);
-        }
+            var parameters = Ctor.GetParameters().Select(p => values[p.Name]).ToArray();
+            if (!parameters.IsSome)
+                return Option<object>.None();
 
-        private object Create2(ConstructorInfo ctor, IMap<string, object> values)
-        {
-            var parameters = ctor.GetParameters().Select(p => values.TryGetValue(p.Name, out var value) ? value : throw new KeyNotFoundException())
-                .ToArray();
-            var instance = ctor.Invoke(parameters);
+            var instance = Ctor.Invoke(parameters.Value);
             foreach (var p in DependencyMappings.OfType<PropertyDependency>())
             {
-                if (values.TryGetValue(p.Name, out var value))
-                {
-                    p.SetValue(instance, value);
-                }
+                var propOption = values[p.Name];
+                if (propOption.IsSome)
+                    p.SetValue(instance, propOption.Value);
             }
 
-            return instance;
+            return instance.Some();
+        }
+    }
+
+    public class MappableDictionary: IMappable
+    {
+        private readonly IEnumerable<KeyValuePair<string, object>> _values;
+
+        public MappableDictionary(IEnumerable<KeyValuePair<string, object>> values)
+        {
+            _values = values;
+        }
+
+        public MappableDictionary(IDictionary<string, object> values)
+        {
+            _values = values;
+        }
+
+        public IOption<IMapping> To(Type targetType)
+        {
+            return new TypeMapping(_values, targetType).Some();
         }
     }
 
@@ -105,23 +120,23 @@ namespace Xania.ObjectMapper
 
         public IEnumerable<IDependency> DependencyMappings { get; } = Enumerable.Empty<IDependency>();
 
-        public object Create(IMap<string, object> values)
+        public IOption<object> Create(IMap<string, object> values)
         {
-            return Instance;
+            return Instance.Some();
         }
     }
 
     public class GenericMapping : IMapping
     {
-        public GenericMapping(Func<IMap<string, object>, object> createFunc, IEnumerable<IDependency> dependencyMappings)
+        public GenericMapping(Func<IMap<string, object>, IOption<object>> createFunc, IEnumerable<IDependency> dependencyMappings)
         {
             DependencyMappings = dependencyMappings;
             CreateFunc = createFunc;
         }
         public IEnumerable<IDependency> DependencyMappings { get; }
-        public Func<IMap<string, object>, object> CreateFunc { get; }
+        public Func<IMap<string, object>, IOption<object>> CreateFunc { get; }
 
-        public object Create(IMap<string, object> values)
+        public IOption<object> Create(IMap<string, object> values)
         {
             return CreateFunc(values);
         }
@@ -129,12 +144,17 @@ namespace Xania.ObjectMapper
 
     public interface IMappingResolver
     {
-        IOption<IMapping> Resolve(object obj, Type targetType);
+        IOption<IMappable> Resolve(object obj);
     }
 
     public interface IMapping
     {
         IEnumerable<IDependency> DependencyMappings { get; }
-        object Create(IMap<string, object> values);
+        IOption<object> Create(IMap<string, object> values);
+    }
+
+    public interface IMappable
+    {
+        IOption<IMapping> To(Type targetType);
     }
 }

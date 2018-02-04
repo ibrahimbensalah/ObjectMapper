@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace Xania.ObjectMapper
+﻿namespace Xania.ObjectMapper
 {
-    public interface IMap<in TSource, TTarget>: IEnumerable<KeyValuePair<string, object>>
+    public interface IMap<in TSource, out TTarget>
     {
-        bool TryGetValue(TSource name, out TTarget value);
+        IOption<TTarget> this[TSource name] { get; }
     }
 }

@@ -148,23 +148,23 @@ namespace Xania.ObjectMapper.Tests
 
     class GraphSONMappingResolver : IMappingResolver
     {
-        public IOption<IMapping> Resolve(object obj, Type targetType)
+        IOption<IMappable> IMappingResolver.Resolve(object obj)
         {
-            if (obj is GraphSON g) 
-                return Option<IMapping>.Some(new TypeMapping(g.Properties.Concat(g.Edges), targetType));
+            if (obj is GraphSON g)
+                return new MappableDictionary(g.Properties.Concat(g.Edges)).Some();
 
-            return Option<IMapping>.None();
+            return Option<IMappable>.None();
         }
     }
 
     class PersonConstract: IMappingResolver
     {
-        public IOption<IMapping> Resolve(object obj, Type targetType)
+        public IOption<IMappable> Resolve(object obj)
         {
-            if (obj is int)
-                return (new TerminalMapping("Ibrahim " + obj)).Some();
+            if (obj is int i)
+                return new MappablePrimitive($"Ibrahim {i}").Some();
 
-            return Option<IMapping>.None();
+            return Option<IMappable>.None();
         }
     }
 }

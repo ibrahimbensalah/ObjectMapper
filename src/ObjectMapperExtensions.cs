@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 
 namespace Xania.ObjectMapper
 {
@@ -11,12 +12,12 @@ namespace Xania.ObjectMapper
 
         public static T MapTo<T>(this Mapper mapper, object obj)
         {
-            return (T) mapper.Map(obj, typeof(T));
+            return (T)mapper.Map(obj, typeof(T)).First();
         }
 
         public static object MapTo(this object obj, Type targetType)
         {
-            return Mapper.Default.Map(obj, targetType);
+            return Mapper.Default.Map(obj, targetType).First();
         }
     }
 }
