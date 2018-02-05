@@ -29,19 +29,33 @@ namespace Xania.ObjectMapper
             return (T)obj;
         }
 
+        private IEnumerable<Mapping> GetMappings(Object value, Type targetType)
+        {
+            var stack = new Stack<Mapping>();
+            stack.Push(new Mapping(value, targetType));
+
+            while (stack.Count > 0)
+            {
+                var curr = stack.Pop();
+
+                var mappings =
+                        from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
+                        from mappable in r.Resolve(curr.Value)
+                        select mappable.To(curr.TargetType)
+                    ;
+            }
+        }
+
         public IOption<object> Map(object obj, Type targetType)
         {
-            if (obj == null)
-                return Option<object>.Some(null);
-
-            var customMappables =
+            var mappings =
                     from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
                     from mappable in r.Resolve(obj)
                     select mappable.To(targetType)
                 ;
 
             var results = 
-                from option in customMappables
+                from option in mappings
                 from mapping in option
                 let deps =
                     from dep in mapping.DependencyMappings
@@ -50,6 +64,18 @@ namespace Xania.ObjectMapper
                 select mapping.Create(new Values(deps));
 
             return results.FirstOrDefault() ?? Option<object>.None();
+        }
+
+        class Mapping
+        {
+            public Mapping(object value, Type targetType)
+            {
+                Value = value;
+                TargetType = targetType;
+            }
+
+            public object Value {  get; }
+            public Type TargetType { get; }
         }
     }
 
@@ -106,6 +132,9 @@ namespace Xania.ObjectMapper
     {
         public IOption<IMappable> Resolve(object obj)
         {
+            if (obj == null)
+                return Option<IMappable>.None();
+
             return new MappablePrimitive(obj).Some();
         }
     }

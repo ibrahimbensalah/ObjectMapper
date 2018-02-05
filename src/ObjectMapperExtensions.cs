@@ -12,12 +12,20 @@ namespace Xania.ObjectMapper
 
         public static T MapTo<T>(this Mapper mapper, object obj)
         {
-            return (T)mapper.Map(obj, typeof(T)).First();
+            return (T)MapTo(mapper, obj, typeof(T));
         }
 
         public static object MapTo(this object obj, Type targetType)
         {
-            return Mapper.Default.Map(obj, targetType).First();
+            return MapTo(Mapper.Default, obj, targetType);
+        }
+
+        public static object MapTo(this Mapper mapper, object obj, Type targetType)
+        {
+            var option = mapper.Map(obj, targetType);
+            if (option.IsSome)
+                return option.Value;
+            return null;
         }
     }
 }
