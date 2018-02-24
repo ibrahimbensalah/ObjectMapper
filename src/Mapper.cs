@@ -8,6 +8,8 @@ namespace Xania.ObjectMapper
 {
     public class Mapper
     {
+        public Map<IPair<object, Type>, object> Cache { get;  } = new Map<IPair<object, Type>, object>();
+
         public IMappingResolver[] CustomMappingResolvers { get; }
 
         public static IMappingResolver[] BuildInMappingResolvers = {
@@ -29,53 +31,33 @@ namespace Xania.ObjectMapper
             return (T)obj;
         }
 
-        private IEnumerable<Mapping> GetMappings(Object value, Type targetType)
-        {
-            var stack = new Stack<Mapping>();
-            stack.Push(new Mapping(value, targetType));
-
-            while (stack.Count > 0)
-            {
-                var curr = stack.Pop();
-
-                var mappings =
-                        from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
-                        from mappable in r.Resolve(curr.Value)
-                        select mappable.To(curr.TargetType)
-                    ;
-            }
-        }
-
         public IOption<object> Map(object obj, Type targetType)
         {
+            var key = Pair.Create(obj, targetType);
+
+            var existing = Cache[key];
+            if (existing.IsSome)
+                return existing;
+
             var mappings =
                     from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
                     from mappable in r.Resolve(obj)
                     select mappable.To(targetType)
                 ;
 
-            var results = 
+            var results =
                 from option in mappings
                 from mapping in option
                 let deps =
-                    from dep in mapping.DependencyMappings
-                    let m = Map(dep.SourceValue, dep.TargetType)
+                    from dep in mapping.Dependencies
+                    let m = Map(dep.Item1, dep.Item2)
                     select new KeyValuePair<string, IOption<object>>(dep.Name, m)
                 select mapping.Create(new Values(deps));
 
-            return results.FirstOrDefault() ?? Option<object>.None();
-        }
+            var result = results.FirstOrDefault();
+            Cache.Add(key, result);
 
-        class Mapping
-        {
-            public Mapping(object value, Type targetType)
-            {
-                Value = value;
-                TargetType = targetType;
-            }
-
-            public object Value {  get; }
-            public Type TargetType { get; }
+            return result ?? Option.None();
         }
     }
 
@@ -203,11 +185,11 @@ namespace Xania.ObjectMapper
     {
         public NullableMapping(object value, Type underlyingType)
         {
-            DependencyMappings = new[]
-                {new GenericDependency {Name = "obj", SourceValue = value, TargetType = underlyingType}};
+            Dependencies = new[]
+                {new GenericDependency {Name = "obj", Value = value, TargetType = underlyingType}};
         }
 
-        public IEnumerable<IDependency> DependencyMappings { get; }
+        public IEnumerable<IDependency> Dependencies { get; }
 
         public IOption<object> Create(IMap<string, object> values)
         {
@@ -276,22 +258,22 @@ namespace Xania.ObjectMapper
         public EnumerableMapping(IEnumerable obj, Type elementType)
         {
             _elementType = elementType;
-            DependencyMappings =
+            Dependencies =
             (from item in obj.OfType<object>()
              select new GenericDependency
              {
                  Name = Guid.NewGuid().ToString(),
-                 SourceValue = item,
+                 Value = item,
                  TargetType = elementType
              }
             ).ToArray();
         }
 
-        public IEnumerable<IDependency> DependencyMappings { get; }
+        public IEnumerable<IDependency> Dependencies { get; }
 
         public IOption<object> Create(IMap<string, object> values)
         {
-            var options = DependencyMappings.Select(dep => values[dep.Name]).ToArray();
+            var options = Dependencies.Select(dep => values[dep.Name]).ToArray();
 
             if (options.IsSome)
                 return Option<object>.None();
@@ -311,22 +293,22 @@ namespace Xania.ObjectMapper
         public ArrayMapping(IEnumerable obj, Type elementType)
         {
             _elementType = elementType;
-            DependencyMappings =
+            Dependencies =
             (from item in obj.OfType<object>()
              select new GenericDependency
              {
                  Name = Guid.NewGuid().ToString(),
-                 SourceValue = item,
+                 Value = item,
                  TargetType = elementType
              }
             ).ToArray();
         }
 
-        public IEnumerable<IDependency> DependencyMappings { get; }
+        public IEnumerable<IDependency> Dependencies { get; }
 
         public IOption<object> Create(IMap<string, object> values)
         {
-            var options = DependencyMappings.Select(dep => values[dep.Name]).ToArray();
+            var options = Dependencies.Select(dep => values[dep.Name]).ToArray();
 
             if (!options.IsSome)
                 return Option<object>.None();

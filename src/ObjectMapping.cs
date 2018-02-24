@@ -39,7 +39,7 @@ namespace Xania.ObjectMapper
                     && !excludes.Contains(targetProp.Name)
                 select new PropertyDependency
                 {
-                    SourceValue = sourceKvp.Value,
+                    Value = sourceKvp.Value,
                     Property = targetProp
                 };
 
@@ -50,16 +50,16 @@ namespace Xania.ObjectMapper
                 select new GenericDependency
                 {
                     Name = targetPar.Name,
-                    SourceValue = sourceKvp.Value,
+                    Value = sourceKvp.Value,
                     TargetType = targetPar.ParameterType
                 };
 
-            DependencyMappings = PropertyMappings.OfType<IDependency>().Concat(ParameterMappings);
+            Dependencies = PropertyMappings.OfType<IDependency>().Concat(ParameterMappings);
         }
 
         public Type TargetType { get; }
         public ConstructorInfo Ctor { get; }
-        public IEnumerable<IDependency> DependencyMappings { get; }
+        public IEnumerable<IDependency> Dependencies { get; }
 
         public IOption<object> Create(IMap<string, object> values)
         {
@@ -68,7 +68,7 @@ namespace Xania.ObjectMapper
                 return Option<object>.None();
 
             var instance = Ctor.Invoke(parameters.Value);
-            foreach (var p in DependencyMappings.OfType<PropertyDependency>())
+            foreach (var p in Dependencies.OfType<PropertyDependency>())
             {
                 var propOption = values[p.Name];
                 if (propOption.IsSome)
@@ -102,8 +102,10 @@ namespace Xania.ObjectMapper
     public class GenericDependency : IDependency
     {
         public string Name { get; set;  }
-        public object SourceValue { get; set; }
+        public object Value { get; set; }
         public Type TargetType { get; set; }
+        public object Item1 => Value;
+        public Type Item2 => TargetType;
     }
 
     /// <summary>
@@ -118,7 +120,7 @@ namespace Xania.ObjectMapper
 
         public object Instance { get; }
 
-        public IEnumerable<IDependency> DependencyMappings { get; } = Enumerable.Empty<IDependency>();
+        public IEnumerable<IDependency> Dependencies { get; } = Enumerable.Empty<IDependency>();
 
         public IOption<object> Create(IMap<string, object> values)
         {
@@ -130,10 +132,10 @@ namespace Xania.ObjectMapper
     {
         public GenericMapping(Func<IMap<string, object>, IOption<object>> createFunc, IEnumerable<IDependency> dependencyMappings)
         {
-            DependencyMappings = dependencyMappings;
+            Dependencies = dependencyMappings;
             CreateFunc = createFunc;
         }
-        public IEnumerable<IDependency> DependencyMappings { get; }
+        public IEnumerable<IDependency> Dependencies { get; }
         public Func<IMap<string, object>, IOption<object>> CreateFunc { get; }
 
         public IOption<object> Create(IMap<string, object> values)
@@ -149,7 +151,7 @@ namespace Xania.ObjectMapper
 
     public interface IMapping
     {
-        IEnumerable<IDependency> DependencyMappings { get; }
+        IEnumerable<IDependency> Dependencies { get; }
         IOption<object> Create(IMap<string, object> values);
     }
 

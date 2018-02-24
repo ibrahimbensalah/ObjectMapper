@@ -11,5 +11,6 @@ namespace Xania.ObjectMapper.Tests
         public string FirstName { get; set; }
         public string LastName { get; set; }
         public Person Parent { get; set; }
+        public Person Child { get; set; }
     }
 }

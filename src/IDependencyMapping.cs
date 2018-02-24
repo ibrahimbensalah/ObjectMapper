@@ -2,11 +2,10 @@
 
 namespace Xania.ObjectMapper
 {
-    public interface IDependency
+    public interface IDependency: IPair<object, Type>
     {
         string Name { get; }
-        object SourceValue { get; }
-        Type TargetType { get; }
-        // void SetValue(object instance, object value);
+        object Value { get; }
+        Type TargetType { get;  }
     }
 }

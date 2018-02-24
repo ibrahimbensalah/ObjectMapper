@@ -15,6 +15,11 @@ namespace Xania.ObjectMapper
             return Option<T>.Some(element);
         }
 
+        public static IOption<object> None()
+        {
+            return Option<object>.None();
+        }
+
         public static IOption<R> Select<T, R>(this IOption<T> option, Func<T, R> selector)
         {
             foreach (var i in option)

@@ -51,6 +51,7 @@
     <Compile Include="ObjectMapperExtensions.cs" />
     <Compile Include="ObjectMapping.cs" />
     <Compile Include="Option.cs" />
+    <Compile Include="Pair.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="DependencyMapping.cs" />
     <Compile Include="Values.cs" />

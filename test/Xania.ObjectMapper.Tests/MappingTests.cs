@@ -132,6 +132,23 @@ namespace Xania.ObjectMapper.Tests
             contact.Numbers.ShouldAllBeEquivalentTo(obj.numbers);
         }
 
+        [Test]
+        public void CircularTest()
+        {
+            var mFaddal = new Person
+            {
+                FirstName = "MFaddel"
+            };
+            var ibrahim = new Person
+            {
+                FirstName = "Ibrahim",
+                Parent = mFaddal
+            };
+            mFaddal.Child = ibrahim;
+
+            var result = mFaddal.MapTo<Person>();
+        }
+
     }
 
     class GraphSON

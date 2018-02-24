@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Xania.ObjectMapper
@@ -10,9 +11,9 @@ namespace Xania.ObjectMapper
             return (T) MapTo(obj, typeof(T));
         }
 
-        public static T MapTo<T>(this Mapper mapper, object obj)
+        public static T MapTo<T>(this Mapper mapper, object value)
         {
-            return (T)MapTo(mapper, obj, typeof(T));
+            return (T)MapTo(mapper, value, typeof(T));
         }
 
         public static object MapTo(this object obj, Type targetType)
@@ -20,12 +21,25 @@ namespace Xania.ObjectMapper
             return MapTo(Mapper.Default, obj, targetType);
         }
 
-        public static object MapTo(this Mapper mapper, object obj, Type targetType)
+        public static object MapTo(this Mapper mapper, object value, Type targetType)
         {
-            var option = mapper.Map(obj, targetType);
+            var option = mapper.Map(value, targetType);
             if (option.IsSome)
                 return option.Value;
             return null;
+        }
+
+        public static IMap<string, TValue> ToMap<TElement, TValue>(this IEnumerable<TElement> elements, Func<TElement, string> keySelector, Func<TElement, IOption<TValue>> valueSelector)
+        {
+            var map = new Map<TValue>();
+            foreach (var e in elements)
+            {
+                var v = valueSelector(e);
+                var k = keySelector(e);
+                map.Add(k, v);
+            }
+            return map;
+
         }
     }
 }
