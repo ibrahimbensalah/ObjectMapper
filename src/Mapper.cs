@@ -8,7 +8,7 @@ namespace Xania.ObjectMapper
 {
     public class Mapper
     {
-        public Map<IPair<object, Type>, object> Cache { get;  } = new Map<IPair<object, Type>, object>();
+        public Map<IPair<object, Type>, object> Cache { get; } = new Map<IPair<object, Type>, object>();
 
         public IMappingResolver[] CustomMappingResolvers { get; }
 
@@ -31,34 +31,178 @@ namespace Xania.ObjectMapper
             return (T)obj;
         }
 
+        abstract class MapResult
+        {
+            protected MapResult(IPair<object, Type> key)
+            {
+                Key = key;
+            }
+
+            public IPair<object, Type> Key { get; }
+        }
+
+        private class AnyMapResult2 : MapResult
+        {
+            private IEnumerator<IMapping> Mappings { get; }
+
+            public AnyMapResult2(IPair<object, Type> key, IEnumerable<IMapping> mappings)
+                : base(key)
+            {
+                Mappings = mappings.GetEnumerator();
+            }
+
+            public IOption<IMapping> Next()
+            {
+                if (Mappings.MoveNext())
+                    return Mappings.Current.Some();
+                return Option<IMapping>.None();
+            }
+        }
+
+        private class RootMapResult : MapResult
+        {
+            public Object Obj { get; }
+            public Type Type { get; }
+
+            public RootMapResult(object obj, Type type)
+                : base(Pair.Create(obj, type))
+            {
+                Obj = obj;
+                Type = type;
+            }
+        }
+
+        public class DepMapResult
+        {
+            public DepMapResult()
+            {
+
+            }
+        }
+
+        private class DependencyMapResult : MapResult
+        {
+            public IMapping Mapping { get; }
+
+            public DependencyMapResult(IPair<object, Type> key, IMapping mapping) : base(key)
+            {
+                Mapping = mapping;
+            }
+        }
+
+        private class ResolvedMapResult : MapResult
+        {
+            public IMapping Mapping { get; }
+
+            public ResolvedMapResult(IPair<object, Type> key, IMapping mapping) : base(key)
+            {
+                Mapping = mapping;
+            }
+        }
+
         public IOption<object> Map(object obj, Type targetType)
         {
-            var key = Pair.Create(obj, targetType);
+            // var key = Pair.Create(obj, targetType);
+            var cache = new Map<IPair<object, Type>, object>();
 
-            var existing = Cache[key];
-            if (existing.IsSome)
-                return existing;
+            var stack = new Stack<MapResult>();
+            var rootMap = new RootMapResult(obj, targetType);
+            stack.Push(rootMap);
 
-            var mappings =
-                    from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
-                    from mappable in r.Resolve(obj)
-                    select mappable.To(targetType)
-                ;
+            while (stack.Count > 0)
+            {
+                var curr = stack.Pop();
+                if (cache[curr.Key].IsSome || stack.Any(e => Equals(e.Key, curr.Key)))
+                    continue;
 
-            var results =
-                from option in mappings
-                from mapping in option
-                let deps =
-                    from dep in mapping.Dependencies
-                    let m = Map(dep.Item1, dep.Item2)
-                    select new KeyValuePair<string, IOption<object>>(dep.Name, m)
-                select mapping.Create(new Values(deps));
+                if (curr is RootMapResult root)
+                {
+                    if (root.Obj != null)
+                    {
+                        var results =
+                                from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
+                                from mappable in r.Resolve(root.Obj)
+                                from mapping in mappable.To(root.Type)
+                                select new DependencyMapResult(root.Key, mapping)
+                            ;
 
-            var result = results.FirstOrDefault();
-            Cache.Add(key, result);
+                        foreach (var result in results)
+                        {
+                            stack.Push(result);
+                        }
+                    }
+                }
+                else if (curr is DependencyMapResult dependencyMap)
+                {
+                    stack.Push(new ResolvedMapResult(dependencyMap.Key, dependencyMap.Mapping));
+                    foreach (var dependency in dependencyMap.Mapping.Dependencies)
+                    {
+                        var rootMapResult = new RootMapResult(dependency.Value, dependency.TargetType);
+                        stack.Push(rootMapResult);
+                    }
+                }
+                else if (curr is ResolvedMapResult resolved)
+                {
+                    var deps =
+                        from dep in resolved.Mapping.Dependencies
+                        let key = Pair.Create(dep.Item1, dep.Item2)
+                        let value = cache[key]
+                        select Pair.Create(dep.Name, value);
 
-            return result ?? Option.None();
+                    var instance = resolved.Mapping.Create(new Values(deps));
+                    if (instance.IsSome)
+                        cache.Add(curr.Key, instance.Value);
+                }
+                else
+                    throw new NotImplementedException($"Type pattern: {curr.GetType()}");
+            }
+
+            return cache[rootMap.Key];
+
+
+            //var depResults =
+            //    from mapping in result.Mappings
+            //    let ddd =
+            //        from dep in mapping.Dependencies
+            //        select new DepMapResult()
+            //    select mapping;
+
+            //foreach(var m in result.Mappings)
+            //{
+
+            //}
+
+            //throw new NotSupportedException();
         }
+
+        //public IOption<object> Map2(object obj, Type targetType)
+        //{
+        //    var key = Pair.Create(obj, targetType);
+
+        //    var existing = Cache[key];
+        //    if (existing.IsSome)
+        //        return existing;
+
+        //    var mappings =
+        //            from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
+        //            from mappable in r.Resolve(obj)
+        //            select mappable.To(targetType)
+        //        ;
+
+        //    var results =
+        //        from option in mappings
+        //        from mapping in option
+        //        let deps =
+        //            from dep in mapping.Dependencies
+        //            let m = Map(dep.Item1, dep.Item2)
+        //            select new KeyValuePair<string, IOption<object>>(dep.Name, m)
+        //        select mapping.Create(new Values(deps));
+
+        //    var result = results.FirstOrDefault();
+        //    Cache.Add(key, result);
+
+        //    return result ?? Option.None();
+        //}
     }
 
     public class ObjectMappingResolver : IMappingResolver
@@ -114,9 +258,6 @@ namespace Xania.ObjectMapper
     {
         public IOption<IMappable> Resolve(object obj)
         {
-            if (obj == null)
-                return Option<IMappable>.None();
-
             return new MappablePrimitive(obj).Some();
         }
     }
@@ -275,7 +416,7 @@ namespace Xania.ObjectMapper
         {
             var options = Dependencies.Select(dep => values[dep.Name]).ToArray();
 
-            if (options.IsSome)
+            if (!options.IsSome)
                 return Option<object>.None();
 
             var content = options.Value;

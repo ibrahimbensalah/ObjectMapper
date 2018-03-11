@@ -20,12 +20,12 @@ namespace Xania.ObjectMapper
             return Option<object>.None();
         }
 
-        public static IOption<R> Select<T, R>(this IOption<T> option, Func<T, R> selector)
+        public static IOption<TR> Select<T, TR>(this IOption<T> option, Func<T, TR> selector)
         {
             foreach (var i in option)
                 return selector(i).Some();
 
-            return Option<R>.None();
+            return Option<TR>.None();
         }
 
         public static IOption<T[]> ToArray<T>(this IEnumerable<IOption<T>> options)

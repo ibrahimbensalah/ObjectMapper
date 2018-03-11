@@ -147,6 +147,7 @@ namespace Xania.ObjectMapper.Tests
             mFaddal.Child = ibrahim;
 
             var result = mFaddal.MapTo<Person>();
+            result.Should().Be(result.Child.Parent);
         }
 
     }
