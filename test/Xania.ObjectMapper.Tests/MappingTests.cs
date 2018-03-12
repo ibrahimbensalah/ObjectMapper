@@ -91,13 +91,13 @@ namespace Xania.ObjectMapper.Tests
         {
             // arrange 
             var mapper = new Mapper(new GraphSONMappingResolver());
-            var graphSON = new GraphSON();
-            graphSON.Properties.Add("firstName", "Ibrahim");
-            graphSON.Properties.Add("lastName", "ben Salah");
-            graphSON.Edges.Add("parent", new { firstName = "MFadel" });
+            var g = new GraphSON();
+            g.Properties.Add("firstName", "Ibrahim");
+            g.Properties.Add("lastName", "ben Salah");
+            g.Edges.Add("parent", new { firstName = "MFadel" });
 
             // act 
-            var person = mapper.MapTo<Person>(graphSON);
+            var person = mapper.MapTo<Person>(g);
 
             // assert
             person.FirstName.Should().Be("Ibrahim");
@@ -133,6 +133,17 @@ namespace Xania.ObjectMapper.Tests
         }
 
         [Test]
+        public void MapToPrivateCollection()
+        {
+            var obj = new
+            {
+                items = new[] { 1, 2, 3 },
+            };
+            var container = obj.MapTo<Container>();
+            container.Items.ShouldAllBeEquivalentTo(obj.items);
+        }
+
+        [Test]
         public void CircularTest()
         {
             var mFaddal = new Person
@@ -162,6 +173,11 @@ namespace Xania.ObjectMapper.Tests
     {
         public int[] Numbers { get; set; }
         public IEnumerable<int> Names { get; set; }
+    }
+
+    class Container
+    {
+        public ICollection<int> Items { get; } = new List<int>();
     }
 
     class GraphSONMappingResolver : IMappingResolver

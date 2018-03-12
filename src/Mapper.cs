@@ -399,14 +399,14 @@ namespace Xania.ObjectMapper
         public EnumerableMapping(IEnumerable obj, Type elementType)
         {
             _elementType = elementType;
-            Dependencies =
-            (from item in obj.OfType<object>()
-             select new GenericDependency
-             {
-                 Name = Guid.NewGuid().ToString(),
-                 Value = item,
-                 TargetType = elementType
-             }
+            Dependencies = (
+                from item in obj.OfType<object>()
+                select new GenericDependency
+                {
+                    Name = Guid.NewGuid().ToString(),
+                    Value = item,
+                    TargetType = elementType
+                }
             ).ToArray();
         }
 
@@ -434,14 +434,14 @@ namespace Xania.ObjectMapper
         public ArrayMapping(IEnumerable obj, Type elementType)
         {
             _elementType = elementType;
-            Dependencies =
-            (from item in obj.OfType<object>()
-             select new GenericDependency
-             {
-                 Name = Guid.NewGuid().ToString(),
-                 Value = item,
-                 TargetType = elementType
-             }
+            Dependencies = (
+                from item in obj.OfType<object>()
+                select new GenericDependency
+                {
+                    Name = Guid.NewGuid().ToString(),
+                    Value = item,
+                    TargetType = elementType
+                }
             ).ToArray();
         }
 
