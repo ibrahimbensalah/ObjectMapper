@@ -1,9 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Xania.ObjectMapper
+﻿namespace Xania.ObjectMapper
 {
     public class Mapping
     {
