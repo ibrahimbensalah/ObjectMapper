@@ -209,6 +209,9 @@ namespace Xania.ObjectMapper
     {
         public IOption<IMappable> Resolve(object obj)
         {
+            if (obj is string || obj == null || obj.GetType().IsEnum || obj.GetType().IsPrimitive)
+                return Option<IMappable>.None();
+
             return new MappableObject(obj).Some();
         }
     }

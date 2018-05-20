@@ -19,9 +19,6 @@ namespace Xania.ObjectMapper
             var ctor = targetType.GetConstructors().OrderBy(e => e.GetParameters().Length)
                 .FirstOrDefault();
 
-            if (ctor == null)
-                throw new InvalidOperationException($"Could not find a contructor for type {targetType}");
-
             return ctor;
         }
 
@@ -29,32 +26,39 @@ namespace Xania.ObjectMapper
         {
             TargetType = targetType;
             Ctor = ctor;
+            if (ctor == null)
+            {
+                Dependencies = Enumerable.Empty<IDependency>();
+                return;
+            }
+            else
+            {
+                var keyValuePairs = pairs as KeyValuePair<string, object>[] ?? pairs.ToArray();
+                var PropertyMappings =
+                    from sourceKvp in keyValuePairs
+                    from PropertyDescriptor targetProp in TypeDescriptor.GetProperties(targetType)
+                    let excludes = ctor.GetParameters().ToLookup(e => e.Name, StringComparer.InvariantCultureIgnoreCase)
+                    where targetProp.Name.Equals(sourceKvp.Key, StringComparison.InvariantCultureIgnoreCase)
+                          && !excludes.Contains(targetProp.Name)
+                    select new PropertyDependency
+                    {
+                        Value = sourceKvp.Value,
+                        Property = targetProp
+                    };
 
-            var keyValuePairs = pairs as KeyValuePair<string, object>[] ?? pairs.ToArray();
-            var PropertyMappings =
-                from sourceKvp in keyValuePairs
-                from PropertyDescriptor targetProp in TypeDescriptor.GetProperties(targetType)
-                let excludes = ctor.GetParameters().ToLookup(e=> e.Name, StringComparer.InvariantCultureIgnoreCase)
-                where targetProp.Name.Equals(sourceKvp.Key, StringComparison.InvariantCultureIgnoreCase)
-                    && !excludes.Contains(targetProp.Name)
-                select new PropertyDependency
-                {
-                    Value = sourceKvp.Value,
-                    Property = targetProp
-                };
+                var ParameterMappings =
+                    from sourceKvp in keyValuePairs
+                    from targetPar in ctor.GetParameters()
+                    where targetPar.Name.Equals(sourceKvp.Key, StringComparison.InvariantCultureIgnoreCase)
+                    select new GenericDependency
+                    {
+                        Name = targetPar.Name,
+                        Value = sourceKvp.Value,
+                        TargetType = targetPar.ParameterType
+                    };
 
-            var ParameterMappings =
-                from sourceKvp in keyValuePairs
-                from targetPar in ctor.GetParameters()
-                where targetPar.Name.Equals(sourceKvp.Key, StringComparison.InvariantCultureIgnoreCase)
-                select new GenericDependency
-                {
-                    Name = targetPar.Name,
-                    Value = sourceKvp.Value,
-                    TargetType = targetPar.ParameterType
-                };
-
-            Dependencies = PropertyMappings.OfType<IDependency>().Concat(ParameterMappings);
+                Dependencies = PropertyMappings.OfType<IDependency>().Concat(ParameterMappings);
+            }
         }
 
         public Type TargetType { get; }
@@ -63,6 +67,9 @@ namespace Xania.ObjectMapper
 
         public IOption<object> Create(IMap<string, object> values)
         {
+            if (Ctor == null)
+                return Option<object>.None();
+
             var parameters = Ctor.GetParameters().Select(p => values[p.Name]).ToArray();
             if (!parameters.IsSome)
                 return Option<object>.None();
