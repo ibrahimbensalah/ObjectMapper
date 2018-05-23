@@ -70,11 +70,11 @@ namespace Xania.ObjectMapper
             if (Ctor == null)
                 return Option<object>.None();
 
-            var parameters = Ctor.GetParameters().Select(p => values[p.Name]).ToArray();
-            if (!parameters.IsSome)
-                return Option<object>.None();
+            var parameters = Ctor.GetParameters().Select(p => Get(values[p.Name], p.ParameterType)).ToArray();
+            //if (!parameters.IsSome)
+            //    return Option<object>.None();
 
-            var instance = Ctor.Invoke(parameters.Value);
+            var instance = Ctor.Invoke(parameters);
             foreach (var p in Dependencies.OfType<PropertyDependency>())
             {
                 var propOption = values[p.Name];
@@ -83,6 +83,17 @@ namespace Xania.ObjectMapper
             }
 
             return instance.Some();
+        }
+
+        private object Get(IOption<object> obj, Type type)
+        {
+            if (obj.IsSome)
+                return obj.Value;
+
+            if (type.IsValueType)
+                return Activator.CreateInstance(type);
+
+            return null;
         }
     }
 
