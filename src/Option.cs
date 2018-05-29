@@ -28,7 +28,7 @@ namespace Xania.ObjectMapper
             return Option<TR>.None();
         }
 
-        public static IOption<T[]> ToArray<T>(this IEnumerable<IOption<T>> options)
+        public static IOption<T[]> AllSome<T>(this IEnumerable<IOption<T>> options)
         {
             var list = new List<T>();
             foreach (var o in options)

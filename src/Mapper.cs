@@ -13,8 +13,8 @@ namespace Xania.ObjectMapper
         public IMappingResolver[] CustomMappingResolvers { get; }
 
         public static IMappingResolver[] BuildInMappingResolvers = {
-            new PrimitiveMappingResolver(),
-            new EnumerableMappingResolver(),
+            new DefaultMappingResolver(),
+            // new EnumerableMappingResolver(),
             new ObjectMappingResolver()
         };
 
@@ -25,12 +25,6 @@ namespace Xania.ObjectMapper
 
         public static Mapper Default { get; } = new Mapper();
 
-        public T MapStringTo<T>(string str)
-        {
-            var obj = Convert.ChangeType(str, typeof(T));
-            return (T)obj;
-        }
-
         abstract class MapResult
         {
             protected MapResult(IPair<object, Type> key)
@@ -39,24 +33,6 @@ namespace Xania.ObjectMapper
             }
 
             public IPair<object, Type> Key { get; }
-        }
-
-        private class AnyMapResult2 : MapResult
-        {
-            private IEnumerator<IMapping> Mappings { get; }
-
-            public AnyMapResult2(IPair<object, Type> key, IEnumerable<IMapping> mappings)
-                : base(key)
-            {
-                Mappings = mappings.GetEnumerator();
-            }
-
-            public IOption<IMapping> Next()
-            {
-                if (Mappings.MoveNext())
-                    return Mappings.Current.Some();
-                return Option<IMapping>.None();
-            }
         }
 
         private class RootMapResult : MapResult
@@ -69,14 +45,6 @@ namespace Xania.ObjectMapper
             {
                 Obj = obj;
                 Type = type;
-            }
-        }
-
-        public class DepMapResult
-        {
-            public DepMapResult()
-            {
-
             }
         }
 
@@ -149,7 +117,7 @@ namespace Xania.ObjectMapper
                         let value = cache[key]
                         select Pair.Create(dep.Name, value);
 
-                    var instance = resolved.Mapping.Create(new Values(deps));
+                    var instance = resolved.Mapping.Create(new Mappings(deps));
                     if (instance.IsSome)
                         cache.Add(curr.Key, instance.Value);
                 }
@@ -230,7 +198,7 @@ namespace Xania.ObjectMapper
             return CreateObjectMapping(_value, targetType);
         }
 
-        private IOption<IMapping> CreateObjectMapping(object obj, Type targetType)
+        public static IOption<IMapping> CreateObjectMapping(object obj, Type targetType)
         {
             if (obj is IEnumerable<KeyValuePair<string, object>> pairs)
                 return CreateObjectMapping(pairs, targetType);
@@ -242,7 +210,7 @@ namespace Xania.ObjectMapper
             );
         }
 
-        private IOption<ObjectMapping> CreateObjectMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
+        private static IOption<ObjectMapping> CreateObjectMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
         {
             var ctor =
                 targetType
@@ -257,19 +225,22 @@ namespace Xania.ObjectMapper
         }
     }
 
-    public class PrimitiveMappingResolver : IMappingResolver
+    public class DefaultMappingResolver : IMappingResolver
     {
         public IOption<IMappable> Resolve(object obj)
         {
-            return new MappablePrimitive(obj).Some();
+            if (obj == null)
+                return Option<IMappable>.None();
+
+            return new DefaultMappable(obj).Some();
         }
     }
 
-    public class MappablePrimitive : IMappable
+    public class DefaultMappable : IMappable
     {
         private readonly object _value;
 
-        public MappablePrimitive(object value)
+        public DefaultMappable(object value)
         {
             _value = value;
         }
@@ -281,6 +252,9 @@ namespace Xania.ObjectMapper
 
         public IOption<IMapping> To(Type targetType)
         {
+            if (targetType.IsInstanceOfType(_value))
+                return Term(_value).Some();
+
             if (targetType == typeof(float))
                 return Term(Convert.ToSingle(_value)).Some();
 
@@ -314,6 +288,22 @@ namespace Xania.ObjectMapper
             if (targetType == typeof(SByte))
                 return Term(Convert.ToSByte(_value)).Some();
 
+            if (targetType.IsEnum)
+                return Term(_value).Some();
+
+            if (targetType.IsArray)
+            {
+                var elementType = targetType.GetElementType();
+                return new ArrayMapping(_value, elementType).Some();
+            }
+
+            var enumerableType = GetInterfaces(targetType).Where(IsEnumerableType).FirstOrDefault();
+            if (enumerableType != null)
+            {
+                var elementType = enumerableType.GenericTypeArguments[0];
+                return new EnumerableMapping(_value, elementType).Some();
+            }
+
             var converter = TypeDescriptor.GetConverter(targetType);
             if (converter.CanConvertFrom(_value.GetType()))
                 return Term(converter.ConvertFrom(_value)).Some();
@@ -321,7 +311,21 @@ namespace Xania.ObjectMapper
             if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Nullable<>))
                 return new NullableMapping(_value, Nullable.GetUnderlyingType(targetType)).Some();
 
-            return Option<IMapping>.None();
+            return MappableObject.CreateObjectMapping(_value, targetType);
+        }
+
+        private static IEnumerable<Type> GetInterfaces(Type targetType)
+        {
+            if (targetType.IsInterface)
+                yield return targetType;
+
+            foreach (var type in targetType.GetInterfaces())
+                yield return type;
+        }
+
+        private bool IsEnumerableType(Type type)
+        {
+            return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>);
         }
     }
 
@@ -345,65 +349,66 @@ namespace Xania.ObjectMapper
         }
     }
 
-    public class EnumerableMappingResolver : IMappingResolver
-    {
-        public IOption<IMappable> Resolve(object obj)
-        {
-            return new MappableEnumerable(obj is IEnumerable enumerable ? enumerable : new[] { obj }).Some();
-        }
-    }
+    //public class EnumerableMappingResolver : IMappingResolver
+    //{
+    //    public IOption<IMappable> Resolve(object obj)
+    //    {
+    //        return new MappableEnumerable(obj is IEnumerable enumerable ? enumerable : new[] { obj }).Some();
+    //    }
+    //}
 
-    public class MappableEnumerable : IMappable
-    {
-        private readonly IEnumerable _enumerable;
+    //public class MappableEnumerable : IMappable
+    //{
+    //    private readonly IEnumerable _enumerable;
 
-        public MappableEnumerable(IEnumerable enumerable)
-        {
-            _enumerable = enumerable;
-        }
+    //    public MappableEnumerable(IEnumerable enumerable)
+    //    {
+    //        _enumerable = enumerable;
+    //    }
 
-        public IOption<IMapping> To(Type targetType)
-        {
-            if (targetType.IsArray)
-            {
-                var elementType = targetType.GetElementType();
-                return new ArrayMapping(_enumerable, elementType).Some();
-            }
+    //    public IOption<IMapping> To(Type targetType)
+    //    {
+    //        if (targetType.IsArray)
+    //        {
+    //            var elementType = targetType.GetElementType();
+    //            return new ArrayMapping(_enumerable, elementType).Some();
+    //        }
 
-            var enumerableType = GetInterfaces(targetType).Where(IsEnumerableType).FirstOrDefault();
-            if (enumerableType != null)
-            {
-                var elementType = enumerableType.GenericTypeArguments[0];
-                return new EnumerableMapping(_enumerable, elementType).Some();
-            }
+    //        var enumerableType = GetInterfaces(targetType).Where(IsEnumerableType).FirstOrDefault();
+    //        if (enumerableType != null)
+    //        {
+    //            var elementType = enumerableType.GenericTypeArguments[0];
+    //            return new EnumerableMapping(_enumerable, elementType).Some();
+    //        }
 
-            return Option<IMapping>.None();
-        }
+    //        return Option<IMapping>.None();
+    //    }
 
-        private IEnumerable<Type> GetInterfaces(Type targetType)
-        {
-            if (targetType.IsInterface)
-                yield return targetType;
+    //    private IEnumerable<Type> GetInterfaces(Type targetType)
+    //    {
+    //        if (targetType.IsInterface)
+    //            yield return targetType;
 
-            foreach (var type in targetType.GetInterfaces())
-                yield return type;
-        }
+    //        foreach (var type in targetType.GetInterfaces())
+    //            yield return type;
+    //    }
 
-        private bool IsEnumerableType(Type type)
-        {
-            return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>);
-        }
-    }
+    //    private bool IsEnumerableType(Type type)
+    //    {
+    //        return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>);
+    //    }
+    //}
 
     public class EnumerableMapping : IMapping
     {
         private readonly Type _elementType;
 
-        public EnumerableMapping(IEnumerable obj, Type elementType)
+        public EnumerableMapping(object obj, Type elementType)
         {
+            var enumerable = obj as IEnumerable ?? new[] { obj };
             _elementType = elementType;
             Dependencies = (
-                from item in obj.OfType<object>()
+                from item in enumerable.OfType<object>()
                 select new GenericDependency
                 {
                     Name = Guid.NewGuid().ToString(),
@@ -417,7 +422,7 @@ namespace Xania.ObjectMapper
 
         public IOption<object> Create(IMap<string, object> values)
         {
-            var options = Dependencies.Select(dep => values[dep.Name]).ToArray();
+            var options = Dependencies.Select(dep => values[dep.Name]).AllSome();
 
             if (!options.IsSome)
                 return Option<object>.None();
@@ -434,11 +439,12 @@ namespace Xania.ObjectMapper
     {
         private readonly Type _elementType;
 
-        public ArrayMapping(IEnumerable obj, Type elementType)
+        public ArrayMapping(object obj, Type elementType)
         {
+            var enumerable = obj as IEnumerable ?? new[] { obj };
             _elementType = elementType;
             Dependencies = (
-                from item in obj.OfType<object>()
+                from item in enumerable.OfType<object>()
                 select new GenericDependency
                 {
                     Name = Guid.NewGuid().ToString(),
@@ -452,7 +458,7 @@ namespace Xania.ObjectMapper
 
         public IOption<object> Create(IMap<string, object> values)
         {
-            var options = Dependencies.Select(dep => values[dep.Name]).ToArray();
+            var options = Dependencies.Select(dep => values[dep.Name]).AllSome();
 
             if (!options.IsSome)
                 return Option<object>.None();

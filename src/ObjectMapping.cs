@@ -29,7 +29,6 @@ namespace Xania.ObjectMapper
             if (ctor == null)
             {
                 Dependencies = Enumerable.Empty<IDependency>();
-                return;
             }
             else
             {
@@ -70,11 +69,12 @@ namespace Xania.ObjectMapper
             if (Ctor == null)
                 return Option<object>.None();
 
-            var parameters = Ctor.GetParameters().Select(p => Get(values[p.Name], p.ParameterType)).ToArray();
-            //if (!parameters.IsSome)
-            //    return Option<object>.None();
+            var option = Ctor.GetParameters().Select(p => values[p.Name].Select(v => (v, p.ParameterType))).AllSome();
+            if (!option.IsSome)
+                return Option<object>.None();
+            var parameters = option.Value;
 
-            var instance = Ctor.Invoke(parameters);
+            var instance = Ctor.Invoke(parameters.Select(p => p.Item1 ?? Default(p.Item2)).ToArray());
             foreach (var p in Dependencies.OfType<PropertyDependency>())
             {
                 var propOption = values[p.Name];
@@ -85,35 +85,12 @@ namespace Xania.ObjectMapper
             return instance.Some();
         }
 
-        private object Get(IOption<object> obj, Type type)
+        private object Default(Type type)
         {
-            if (obj.IsSome)
-                return obj.Value;
-
             if (type.IsValueType)
                 return Activator.CreateInstance(type);
 
             return null;
-        }
-    }
-
-    public class MappableDictionary: IMappable
-    {
-        private readonly IEnumerable<KeyValuePair<string, object>> _values;
-
-        public MappableDictionary(IEnumerable<KeyValuePair<string, object>> values)
-        {
-            _values = values;
-        }
-
-        public MappableDictionary(IDictionary<string, object> values)
-        {
-            _values = values;
-        }
-
-        public IOption<IMapping> To(Type targetType)
-        {
-            return new ObjectMapping(_values, targetType).Some();
         }
     }
 
@@ -143,22 +120,6 @@ namespace Xania.ObjectMapper
         public IOption<object> Create(IMap<string, object> values)
         {
             return Instance.Some();
-        }
-    }
-
-    public class GenericMapping : IMapping
-    {
-        public GenericMapping(Func<IMap<string, object>, IOption<object>> createFunc, IEnumerable<IDependency> dependencyMappings)
-        {
-            Dependencies = dependencyMappings;
-            CreateFunc = createFunc;
-        }
-        public IEnumerable<IDependency> Dependencies { get; }
-        public Func<IMap<string, object>, IOption<object>> CreateFunc { get; }
-
-        public IOption<object> Create(IMap<string, object> values)
-        {
-            return CreateFunc(values);
         }
     }
 

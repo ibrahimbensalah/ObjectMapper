@@ -4,11 +4,11 @@ using System.Linq;
 
 namespace Xania.ObjectMapper
 {
-    public class Values : IMap<string, object>
+    public class Mappings : IMap<string, object>
     {
         private readonly IDictionary<string, object> _dict;
 
-        public Values(IEnumerable<IPair<string, IOption<object>>> mappings)
+        public Mappings(IEnumerable<IPair<string, IOption<object>>> mappings)
         {
             _dict = new Dictionary<string, object>(StringComparer.InvariantCultureIgnoreCase);
             foreach (var m in mappings)
@@ -18,7 +18,7 @@ namespace Xania.ObjectMapper
             }
         }
 
-        public Values(IEnumerable<IPair<string, object>> mappings)
+        public Mappings(IEnumerable<IPair<string, object>> mappings)
         {
             _dict = new Dictionary<string, object>(StringComparer.InvariantCultureIgnoreCase);
             foreach (var m in mappings)
@@ -26,12 +26,12 @@ namespace Xania.ObjectMapper
                 _dict.Add(m.Item1, m.Item2);
             }
         }
-        public Values(IDictionary<string, object> dict)
+        public Mappings(IDictionary<string, object> dict)
         {
             _dict = dict;
         }
 
-        public static IMap<string, object> Empty => new Values(Enumerable.Empty<IPair<string, IOption<object>>>());
+        public static IMap<string, object> Empty => new Mappings(Enumerable.Empty<IPair<string, IOption<object>>>());
         public IOption<object> this[string name] => _dict.TryGetValue(name, out var value) ? value.Some() : Option<object>.None();
     }
 }
