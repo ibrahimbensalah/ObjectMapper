@@ -245,7 +245,7 @@ namespace Xania.ObjectMapper
             _value = value;
         }
 
-        private TerminalMapping Term(object obj)
+        private static TerminalMapping Term(object obj)
         {
             return new TerminalMapping(obj);
         }
@@ -276,16 +276,16 @@ namespace Xania.ObjectMapper
             if (targetType == typeof(double))
                 return Term(Convert.ToDouble(_value)).Some();
 
-            if (targetType == typeof(Int16))
+            if (targetType == typeof(short))
                 return Term(Convert.ToInt16(_value)).Some();
 
-            if (targetType == typeof(Int32))
+            if (targetType == typeof(int))
                 return Term(Convert.ToInt32(_value)).Some();
 
-            if (targetType == typeof(Int64))
+            if (targetType == typeof(long))
                 return Term(Convert.ToInt64(_value)).Some();
 
-            if (targetType == typeof(SByte))
+            if (targetType == typeof(sbyte))
                 return Term(Convert.ToSByte(_value)).Some();
 
             if (targetType.IsEnum)

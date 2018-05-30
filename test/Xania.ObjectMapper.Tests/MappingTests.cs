@@ -185,7 +185,7 @@ namespace Xania.ObjectMapper.Tests
         IOption<IMappable> IMappingResolver.Resolve(object obj)
         {
             if (obj is GraphSON g)
-                return new MappableDictionary(g.Properties.Concat(g.Edges)).Some();
+                return new MappableObject(g.Properties.Concat(g.Edges)).Some();
 
             return Option<IMappable>.None();
         }
@@ -196,7 +196,7 @@ namespace Xania.ObjectMapper.Tests
         public IOption<IMappable> Resolve(object obj)
         {
             if (obj is int i)
-                return new MappablePrimitive($"Ibrahim {i}").Some();
+                return new DefaultMappable($"Ibrahim {i}").Some();
 
             return Option<IMappable>.None();
         }
