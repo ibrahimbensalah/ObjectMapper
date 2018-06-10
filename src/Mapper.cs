@@ -12,11 +12,7 @@ namespace Xania.ObjectMapper
 
         public IMappingResolver[] CustomMappingResolvers { get; }
 
-        public static IMappingResolver[] BuildInMappingResolvers = {
-            new DefaultMappingResolver(),
-            // new EnumerableMappingResolver(),
-            new ObjectMappingResolver()
-        };
+        public static IMappingResolver DefaultMappingResolver = new DefaultMappingResolver();
 
         public Mapper(params IMappingResolver[] customMappingResolvers)
         {
@@ -88,7 +84,7 @@ namespace Xania.ObjectMapper
                     if (root.Obj != null)
                     {
                         var results =
-                                from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
+                                from r in CustomMappingResolvers.Append(DefaultMappingResolver)
                                 from mappable in r.Resolve(root.Obj)
                                 from mapping in mappable.To(root.Type)
                                 select new DependencyMapResult(root.Key, mapping)
@@ -231,6 +227,9 @@ namespace Xania.ObjectMapper
         {
             if (obj == null)
                 return Option<IMappable>.None();
+
+            if (obj is IMappable mappable)
+                return mappable.Some();
 
             return new DefaultMappable(obj).Some();
         }

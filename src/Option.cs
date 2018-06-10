@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Xania.ObjectMapper
 {
@@ -18,6 +19,14 @@ namespace Xania.ObjectMapper
         public static IOption<object> None()
         {
             return Option<object>.None();
+        }
+
+        public static IOption<T> SingleOrNone<T>(this IEnumerable<T> enumerable)
+        {
+            var single = enumerable.SingleOrDefault();
+            if (single == null)
+                return Option<T>.None();
+            return single.Some();
         }
 
         public static IOption<TR> Select<T, TR>(this IOption<T> option, Func<T, TR> selector)
