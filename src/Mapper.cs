@@ -122,61 +122,6 @@ namespace Xania.ObjectMapper
             }
 
             return cache[rootMap.Key];
-
-
-            //var depResults =
-            //    from mapping in result.Mappings
-            //    let ddd =
-            //        from dep in mapping.Dependencies
-            //        select new DepMapResult()
-            //    select mapping;
-
-            //foreach(var m in result.Mappings)
-            //{
-
-            //}
-
-            //throw new NotSupportedException();
-        }
-
-        //public IOption<object> Map2(object obj, Type targetType)
-        //{
-        //    var key = Pair.Create(obj, targetType);
-
-        //    var existing = Cache[key];
-        //    if (existing.IsSome)
-        //        return existing;
-
-        //    var mappings =
-        //            from r in CustomMappingResolvers.Concat(BuildInMappingResolvers)
-        //            from mappable in r.Resolve(obj)
-        //            select mappable.To(targetType)
-        //        ;
-
-        //    var results =
-        //        from option in mappings
-        //        from mapping in option
-        //        let deps =
-        //            from dep in mapping.Dependencies
-        //            let m = Map(dep.Item1, dep.Item2)
-        //            select new KeyValuePair<string, IOption<object>>(dep.Name, m)
-        //        select mapping.Create(new Values(deps));
-
-        //    var result = results.FirstOrDefault();
-        //    Cache.Add(key, result);
-
-        //    return result ?? Option.None();
-        //}
-    }
-
-    public class ObjectMappingResolver : IMappingResolver
-    {
-        public IOption<IMappable> Resolve(object obj)
-        {
-            if (obj is string || obj == null || obj.GetType().IsEnum || obj.GetType().IsPrimitive)
-                return Option<IMappable>.None();
-
-            return new MappableObject(obj).Some();
         }
     }
 
@@ -206,7 +151,7 @@ namespace Xania.ObjectMapper
             );
         }
 
-        private static IOption<ObjectMapping> CreateObjectMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
+        public static IOption<ObjectMapping> CreateObjectMapping(IEnumerable<KeyValuePair<string, object>> pairs, Type targetType)
         {
             var ctor =
                 targetType
